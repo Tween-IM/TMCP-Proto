@@ -2,6 +2,71 @@
 
 All notable changes to Tween Mini-App Communication Protocol (TMCP) will be documented in this file.
 
+## [1.4.0] - 2025-12-28
+
+### Added
+- **Section 10.4: WebView Security Requirements**
+  - Mandatory security controls for mini-app sandboxing
+  - Content Security Policy requirements and validation
+  - JavaScript bridge security with postMessage validation
+  - URL validation and sensitive data protection
+  - Certificate pinning and lifecycle management
+
+- **Section 10.5: Capability Negotiation**
+  - Feature detection API for mini-app platform capabilities
+  - Standardized capability categories (camera, location, payment, storage, etc.)
+  - Server-side validation and rate limiting
+  - Graceful degradation for unsupported features
+
+- **Section 7.7: Circuit Breaker Pattern for Payment Failures**
+  - Resilience pattern for Wallet Service outages
+  - Configurable failure thresholds and recovery timeouts
+  - Circuit states: CLOSED, OPEN, HALF_OPEN
+  - Metrics exposure for monitoring
+
+- **Section 9.3: Mini-App Review Process**
+  - Automated security checks for CSP, HTTPS, credentials
+  - Manual review criteria for permissions, content, and business validation
+  - Review timeline and appeal process
+  - Multi-tier classification (official, verified, community, beta)
+
+- **Enhanced Section 4.3.1: JWT Security Requirements**
+  - Algorithm whitelist validation (RS256, RS384, RS512)
+  - Not-before claim (nbf) validation
+  - Token type claim for explicit typing
+  - Issuer and audience validation
+
+- **Enhanced Section 6.4: Wallet Verification Interface**
+  - Protocol-defined verification status endpoint
+  - Standardized response format for verification levels
+  - Clear separation between protocol interface and Wallet Service implementation
+
+- **Enhanced Section 7.5.6: Group Gift Atomicity**
+  - Database-level locking for concurrent gift opening
+  - PostgreSQL SELECT FOR UPDATE implementation
+  - Race condition prevention and error handling
+
+- **Enhanced Section 11.4: Rate Limiting**
+  - Per-endpoint rate limits with token bucket algorithm
+  - Distributed rate limiting for multi-instance deployments
+  - Account suspension for abuse patterns
+  - Enhanced response headers and error codes
+
+### Changed
+- **Federation Terminology**: Standardized "controlled federation environments" throughout document
+- **Section Numbering**: Fixed numbering conflicts (WebView moved to 10.4, Capability to 10.5, MFA to 7.6, Circuit Breaker to 7.7)
+- **Document Metadata**: Updated date to December 2025, changed identifier to TMCP-001
+
+### Security
+- **WebView Hardening**: Comprehensive security requirements for mini-app execution environments
+- **JWT Validation**: Enhanced token security with algorithm whitelisting and claim validation
+- **Circuit Breaker Protection**: Automatic service degradation handling for payment operations
+
+### Documentation
+- **Appendix C: WebView Implementation Details**: Moved detailed platform-specific implementations from main spec
+- **Appendix D: Webhook Signature Verification**: Moved from Appendix C
+- **Table of Contents**: Updated with corrected section numbering and appendix references
+
 ## [1.3.0] - 2025-12-20
 
 ### Added
@@ -104,7 +169,10 @@ All notable changes to Tween Mini-App Communication Protocol (TMCP) will be docu
 ## [Unreleased] - Future
 
 ### Planned
-- None currently
+- GraphQL API alternative to REST endpoints
+- WebSocket support for real-time mini-app communication
+- Advanced fraud detection and prevention mechanisms
+- Cross-platform mini-app packaging and distribution
 
 ---
 
