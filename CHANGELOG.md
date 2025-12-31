@@ -2,6 +2,79 @@
 
 All notable changes to Tween Mini-App Communication Protocol (TMCP) will be documented in this file.
 
+## [1.5.0] - 2025-12-31
+
+### Changed
+
+- **Complete Migration from Keycloak to Matrix Authentication Service (MAS)**
+  - Replaced Section 16.10 OAuth Server Implementation with MAS-based architecture
+  - Updated all authentication flows to use MAS as OAuth 2.0 authorization server
+  - Added Device Authorization Grant (RFC 8628) as recommended flow for mini-apps
+  - Added Authorization Code Flow with PKCE (RFC 7636) for web mini-apps
+  - Removed all Keycloak-specific configuration and references
+  - Integrated MAS client credentials for TMCP Server operations
+
+- **Section 4: Identity and Authentication (Complete Rewrite)**
+  - Implemented dual-token architecture: TEP Token (JWT) + MAS Access Token
+  - TEP Token: Long-lived JWT for TMCP-specific operations with custom claims
+  - MAS Access Token: Short-lived (5 min), memory-only, automatic refresh
+  - Added comprehensive client-side token management for iOS, Android, and web
+  - Added TEP token structure with MAS session reference claims
+  - Added TMCP Server authentication middleware implementation
+  - Added MAS integration requirements with client registration
+
+- **Section 3.1.2: TMCP Server Architecture (Enhanced)**
+  - Added detailed server component architecture diagram
+  - Added MAS Client configuration and token management
+  - Added TMCP Server OAuth 2.0 token endpoint implementation
+  - Clarified Application Service role in Matrix event sending
+
+- **Section 5: Authorization Framework (Updated)**
+  - Separated TMCP Scopes from Matrix Scopes
+  - Added Matrix scope definitions per MSC2967
+  - Updated scope request format to include both scope types
+  - Added scope mapping table for TMCP and Matrix operations
+
+- **Appendix A: Complete Protocol Flow Example (Updated)**
+  - Rewrote to reflect MAS authentication flow
+  - Added Device Authorization Grant steps
+  - Updated payment flow to show TEP + AS token architecture
+  - Added visual in-chat payment receipt rendering example
+
+### Added
+
+- **Section 4.11: In-Chat Payment Architecture**
+  - Added virtual payment bot user (`@_tmcp_payments:tween.example`)
+  - Defined payment event types (`m.tween.payment.*`)
+  - Added rich payment event structure for client rendering
+  - Added third-party wallet integration via webhooks
+  - Added payment event idempotency handling
+  - Added client rendering requirements for payment cards
+
+- **Section 4.7: MAS Integration Requirements**
+  - Added TMCP Server client registration in MAS
+  - Added mini-app client registration in MAS
+  - Added scope definitions for Matrix API access
+
+### Security
+
+- **Enhanced Token Security**
+  - Memory-only storage for MAS access tokens prevents XSS theft
+  - Clear separation between TMCP and Matrix authentication
+  - Automatic token refresh reduces client complexity
+  - Virtual payment bot prevents user impersonation in Matrix events
+
+- **Webhook Security**
+  - Added signature verification for third-party wallet callbacks
+  - Defined callback payload structure with transaction details
+
+### Removed
+
+- All Keycloak-specific OAuth server implementation
+- Keycloak realm configuration examples
+- Keycloak client registration documentation
+- Keycloak MFA integration references
+
 ## [1.4.0] - 2025-12-28
 
 ### Added
