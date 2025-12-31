@@ -3931,7 +3931,7 @@ Message format and validation requirements are defined in Section 10.1.
 
 Detailed implementation examples for all platforms are provided in Appendix C.
 
-#### 10.4.6 Sensitive Data Protection
+#### 10.4.5 Secure Communication Patterns
 
 **NEVER inject sensitive data into WebView:**
 
@@ -3951,7 +3951,7 @@ webView.evaluateJavascript(
 );
 ```
 
-#### 10.4.7 Certificate Pinning
+#### 10.4.6 Certificate Pinning
 
 **For high-security mini-apps, implement certificate pinning:**
 
@@ -3966,7 +3966,7 @@ val client = OkHttpClient.Builder()
     .build()
 ```
 
-#### 10.4.8 WebView Lifecycle Management
+#### 10.4.7 WebView Lifecycle Management
 
 **Clear sensitive data on lifecycle events:**
 
