@@ -7,9 +7,10 @@ All notable changes to Tween Mini-App Communication Protocol (TMCP) will be docu
 ### Added
 
 - **Flexible Authorization for P2P Transfers (Section 7.2)**
+  - Separated P2P initiation from authorization: initiate creates transfer and returns available auth methods, confirm validates auth
   - Added support for biometric, PIN, and OTP authorization methods with fallback logic
   - Added pre-authorization check via Wallet Service to determine available methods and recipient acceptance policy
-  - Updated P2P initiate request to include `auth_proof` with flexible proof types (signature for hardware, hashed for PIN, code for OTP)
+  - Added new confirm endpoint with `auth_proof` (signature for hardware, hashed for PIN, code for OTP)
   - Made recipient acceptance optional per wallet policy (instant transfers for trusted users)
   - Added conditional acceptance protocol with Matrix event updates
   - Maintained uniformity with mini-app payment authorization

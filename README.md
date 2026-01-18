@@ -3030,6 +3030,41 @@ Content-Type: application/json
   "recipient": "@bob:tween.example",
   "amount": 5000.00,
   "currency": "USD",
+  "idempotency_key": "unique-uuid"
+}
+```
+
+**Idempotency Requirements:**
+- Clients MUST include a unique idempotency key
+- Servers MUST cache keys for 24 hours minimum
+- Duplicate requests MUST return original response
+
+**Response:**
+```json
+{
+  "transfer_id": "p2p_abc123",
+  "status": "pending_authorization",
+  "available_methods": ["biometric", "pin", "otp"],
+  "recipient_acceptance_required": false,  // Per wallet policy
+  "amount": 5000.00,
+  "sender": {
+    "user_id": "@alice:tween.example"
+  },
+  "recipient": {
+    "user_id": "@bob:tween.example"
+  },
+  "timestamp": "2025-12-18T14:30:00Z"
+}
+```
+
+#### 7.2.4 Confirm Transfer
+```http
+POST /wallet/v1/p2p/{transfer_id}/confirm HTTP/1.1
+Host: tmcp.example.com
+Authorization: Bearer <TEP_TOKEN>
+Content-Type: application/json
+
+{
   "auth_proof": {
     "method": "biometric",
     "proof": {
@@ -3044,22 +3079,16 @@ Content-Type: application/json
       "otp_code": "123456",
       "timestamp": "2025-12-18T14:30:15Z"
     }
-  },
-  "idempotency_key": "unique-uuid"
+  }
 }
 ```
-
-**Idempotency Requirements:**
-- Clients MUST include a unique idempotency key
-- Servers MUST cache keys for 24 hours minimum
-- Duplicate requests MUST return original response
 
 **Response:**
 ```json
 {
   "transfer_id": "p2p_abc123",
   "status": "completed",  // Or "pending_recipient_acceptance"
-  "recipient_acceptance_required": false,  // Per wallet policy
+  "recipient_acceptance_required": false,
   "amount": 5000.00,
   "sender": {
     "user_id": "@alice:tween.example",
@@ -3074,8 +3103,8 @@ Content-Type: application/json
 }
 ```
 
-#### 7.2.4 Matrix Event for P2P Transfer
-TMCP Server creates a Matrix event documenting the transfer:
+#### 7.2.8 Matrix Event for P2P Transfer
+TMCP Server creates a Matrix event documenting the transfer after confirmation:
 
 ```json
 {
@@ -3102,18 +3131,19 @@ TMCP Server creates a Matrix event documenting the transfer:
 }
 ```
 
-#### 7.2.5 Recipient Acceptance Protocol (Conditional)
+#### 7.2.7 Recipient Acceptance Protocol (Conditional)
 Recipient acceptance is optional per wallet policy. If `recipient_acceptance_required: true`, follow the acceptance flow for enhanced security.
 
 **Conditional Acceptance Flow:**
 ```
-INITIATED → COMPLETED (if no acceptance required)
-     ↓
-PENDING_RECIPIENT_ACCEPTANCE → COMPLETED (accepted) | EXPIRED (24h, refunded)
-     ↓              ↓
-CANCELLED    EXPIRED (24h)
-     ↓              ↓
-REJECTED ←─────────┘
+INITIATED → PENDING_AUTHORIZATION → AUTHORIZED → COMPLETED (if no acceptance required)
+     ↓                              ↓              ↓
+CANCELLED                   AUTH_FAILED    PENDING_RECIPIENT_ACCEPTANCE → COMPLETED (accepted) | EXPIRED (24h, refunded)
+     ↓                              ↓              ↓
+REJECTED ←─────────────────────────┘              ↓
+                                                 EXPIRED (24h)
+                                                 ↓
+                                                 REJECTED
 ```
 
 **Acceptance Window:** 24 hours (when required)
