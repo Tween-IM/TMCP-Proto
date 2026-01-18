@@ -11,6 +11,7 @@ All notable changes to Tween Mini-App Communication Protocol (TMCP) will be docu
   - Added support for biometric, PIN, and OTP authorization methods with fallback logic
   - Added pre-authorization check via Wallet Service to determine available methods and recipient acceptance policy
   - Added new confirm endpoint with `auth_proof` (signature for hardware, hashed for PIN, code for OTP)
+  - Added GET /wallet/v1/p2p/{transfer_id} endpoint for manual transfer status checks
   - Made recipient acceptance optional per wallet policy (instant transfers for trusted users)
   - Added conditional acceptance protocol with Matrix event updates
   - Maintained uniformity with mini-app payment authorization

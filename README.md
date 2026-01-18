@@ -3264,6 +3264,39 @@ TMCP Server runs scheduled jobs for transfers where acceptance is required.
 }
 ```
 
+#### 7.2.9 Get Transfer Status
+Clients can manually check P2P transfer status, useful for polling or when Matrix events are unavailable.
+
+```http
+GET /wallet/v1/p2p/{transfer_id} HTTP/1.1
+Host: tmcp.example.com
+Authorization: Bearer <TEP_TOKEN>
+```
+
+**Response**:
+```json
+{
+  "transfer_id": "p2p_abc123",
+  "status": "completed",  // pending_authorization, authorized, pending_recipient_acceptance, completed, rejected, expired
+  "amount": 5000.00,
+  "currency": "USD",
+  "sender": {"user_id": "@alice:tween.example"},
+  "recipient": {"user_id": "@bob:tween.example"},
+  "recipient_acceptance_required": false,
+  "timestamp": "2025-12-18T14:30:00Z",
+  "event_id": "$event_abc123:tween.example",
+  "expires_at": "2025-12-19T14:30:00Z"  // If pending acceptance
+}
+```
+
+**Error Response (Not Found)**:
+```json
+{
+  "error": "transfer_not_found",
+  "transfer_id": "p2p_abc123"
+}
+```
+
 ### 7.3 Mini-App Payment Flow
 
 #### 7.3.1 Payment Request
