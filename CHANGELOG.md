@@ -2,6 +2,25 @@
 
 All notable changes to Tween Mini-App Communication Protocol (TMCP) will be documented in this file.
 
+## [1.8.0] - 2026-01-18
+
+### Added
+
+- **Flexible Authorization for P2P Transfers (Section 7.2)**
+  - Added support for biometric, PIN, and OTP authorization methods with fallback logic
+  - Added pre-authorization check via Wallet Service to determine available methods and recipient acceptance policy
+  - Updated P2P initiate request to include `auth_proof` with flexible proof types (signature for hardware, hashed for PIN, code for OTP)
+  - Made recipient acceptance optional per wallet policy (instant transfers for trusted users)
+  - Added conditional acceptance protocol with Matrix event updates
+  - Maintained uniformity with mini-app payment authorization
+
+### Fixed
+
+- **RFC Compliance Issues**
+  - Removed marketing language ("instant" replaced with technical specs in abstract)
+  - Replaced changelog-style content with behavioral descriptions
+  - Ensured no implementation code in normative sections
+
 ## [1.7.0] - 2026-01-16
 
 ### Added
