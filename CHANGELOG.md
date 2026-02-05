@@ -2,6 +2,67 @@
 
 All notable changes to Tween Mini-App Communication Protocol (TMCP) will be documented in this file.
 
+## [1.9.0] - 2026-01-31
+
+### Added
+
+- **Auto Wallet Creation with Pending Activation (Section 6.3)**
+  - Updated User Resolution Flow to support automatic wallet creation for non-existent users
+  - Removed `NO_WALLET` error response in favor of auto-creation with `user_status: pending`
+  - Added `user_status` field to resolution responses (`active`, `pending`, `suspended`)
+  - Added `payment_enabled` boolean to indicate if user can send payments
+  - Added `activation_required` and `activation_url` for pending accounts
+  - Wallets are created with `wallet_status: active` but `user_status: pending`
+  - Pending users can receive but cannot send funds until activation completed
+  - Updated batch resolution endpoint to support pending user accounts
+  - Replaced Wallet Invitation Protocol (6.3.10) with Account Activation Protocol
+  - Added comprehensive activation requirements (verification, terms, PIN/biometric setup)
+  - Added account activation endpoint specification
+  - Added activation incentives mechanism to encourage user conversion
+  - Added `m.tween.account.activate` Matrix event type for activation notifications
+  - Updated Section 8.1.4 with Account Activation Event specification
+
+- **Wallet Service Interface Requirements (Section 6.3.4)**
+  - Added `EnsureUserAccount(user_id)` interface requirement
+  - Specified automatic account creation behavior with `user_status: pending`
+  - Added account activation interface requirements
+  - Added verification validation, biometric enrollment, PIN security requirements
+  - Added terms tracking and audit trail requirements
+
+### Changed
+
+- **User Resolution Endpoint (Section 6.3.2)**
+  - Changed from returning `NO_WALLET` error (404) to auto-creating accounts (200)
+  - Added response format for pending user accounts with `activation_required: true`
+  - Updated HTTP status codes: 200 OK for all resolved users, 404 only for non-existent Matrix users
+  - Added status value definitions for `user_status` and `payment_enabled`
+
+- **P2P Payment with Matrix User ID (Section 6.3.5)**
+  - Updated processing to call `EnsureUserAccount` instead of returning `RECIPIENT_NO_WALLET` error
+  - Added behavior for sending to pending users (funds deposited, activation notification sent)
+  - Added security considerations for account creation on explicit payment intent
+  - Added activation notification requirements with `m.tween.account.activate` event
+
+- **Error Codes (Section 12.2)**
+  - Removed `RECIPIENT_NO_WALLET` error code (no longer applicable)
+  - Added `USER_SUSPENDED` error code for suspended recipient accounts
+  - Updated error code table to reflect auto-creation behavior
+
+### Security
+
+- **Privacy Protection**: Account creation only occurs on explicit payment intent, preventing enumeration attacks
+- **Funds Protection**: Pending users can receive funds but cannot spend until activation completed
+- **Activation Security**: Strong PIN hashing, biometric enrollment, verification validation requirements
+- **Audit Trail**: Terms acceptance tracking, activation logging for fraud detection
+
+### Removed
+
+- **Wallet Invitation Protocol (Section 6.3.10)**: Replaced with Account Activation Protocol
+  - Manual invitation flows no longer required
+  - Auto-creation on payment intent replaces invitation-based onboarding
+
+---
+
 ## [1.8.0] - 2026-01-18
 
 ### Added

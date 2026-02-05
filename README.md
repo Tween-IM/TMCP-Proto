@@ -2451,13 +2451,15 @@ Matrix Room → User clicks "Send Money" to @bob:tween.example
      ↓
 Client → TMCP Server: Resolve Matrix ID to Wallet ID
      ↓
-TMCP Server → Wallet Service: Get wallet for user
+TMCP Server → Wallet Service: Ensure user account exists
      ↓
-Wallet Service → TMCP Server: Return wallet_id or error
+Wallet Service:
+     ├─ User account exists? → Return wallet_id, user_status, payment_enabled
+     └─ No account? → Create account with user_status:pending → Return wallet_id, user_status:pending, payment_enabled:false
      ↓
-TMCP Server → Client: wallet_id or NO_WALLET error
+TMCP Server → Client: wallet_id, user_status, payment_enabled, activation_url (if pending)
      ↓
-Client: Proceed with payment or show "User has no wallet"
+Client: Proceed with payment (funds held until user activates account)
 ```
 
 #### 6.3.2 User Resolution Endpoint
@@ -2470,12 +2472,13 @@ Host: tmcp.example.com
 Authorization: Bearer <TEP_TOKEN>
 ```
 
-**Response (User has wallet):**
+**Response (User has active wallet):**
 ```json
 {
   "user_id": "@bob:tween.example",
   "wallet_id": "tw_user_67890",
   "wallet_status": "active",
+  "user_status": "active",
   "display_name": "Bob Smith",
   "avatar_url": "mxc://tween.example/avatar123",
   "payment_enabled": true,
@@ -2483,24 +2486,45 @@ Authorization: Bearer <TEP_TOKEN>
 }
 ```
 
-**Response (User has no wallet):**
+**Response (User exists but account not activated):**
 ```json
 {
-  "error": {
-    "code": "NO_WALLET",
-    "message": "User does not have a wallet",
-    "user_id": "@bob:tween.example",
-    "can_invite": true,
-    "invite_message": "Invite Bob to create a Tween Wallet"
+  "user_id": "@bob:tween.example",
+  "wallet_id": "tw_user_67890",
+  "wallet_status": "active",
+  "display_name": "Bob Smith",
+  "avatar_url": "mxc://tween.example/avatar123",
+  "user_status": "pending",
+  "payment_enabled": false,
+  "created_at": "2025-12-18T14:30:00Z",
+  "activation_required": true,
+  "activation_url": "https://tween.example/account/activate?user=@bob:tween.example",
+  "pending_balance": {
+    "amount": 0.00,
+    "currency": "USD"
   }
 }
 ```
 
 **HTTP Status Codes:**
-- 200 OK: User has active wallet
-- 404 Not Found: User has no wallet (with NO_WALLET error body)
-- 403 Forbidden: User has wallet but it's suspended/inactive
+- 200 OK: User resolved successfully (wallet always exists for Matrix users)
+- 404 Not Found: User does not exist on Matrix Homeserver
+- 403 Forbidden: Requester and target do not share a room (privacy constraint)
 - 401 Unauthorized: Invalid TEP token
+
+**Status Values:**
+
+**Wallet Status (`wallet_status`):**
+- `active`: Wallet is operational and can receive funds
+
+**User Status (`user_status`):**
+- `active`: User account fully verified, can send and receive payments
+- `pending`: User account created but requires activation (verification, PIN setup, terms acceptance)
+- `suspended`: User account suspended (fraud, compliance, or user request)
+
+**Payment Enabled (`payment_enabled`):**
+- `true`: User can send and receive payments
+- `false`: User can only receive payments (pending activation)
 
 #### 6.3.3 Batch User Resolution
 
@@ -2532,23 +2556,31 @@ Content-Type: application/json
       "user_id": "@alice:tween.example",
       "wallet_id": "tw_user_12345",
       "wallet_status": "active",
-      "payment_enabled": true
+      "user_status": "active",
+      "payment_enabled": true,
+      "display_name": "Alice",
+      "avatar_url": "mxc://tween.example/avatar123"
     },
     {
       "user_id": "@bob:tween.example",
       "wallet_id": "tw_user_67890",
       "wallet_status": "active",
-      "payment_enabled": true
+      "user_status": "active",
+      "payment_enabled": true,
+      "display_name": "Bob",
+      "avatar_url": "mxc://tween.example/avatar456"
     },
     {
       "user_id": "@charlie:tween.example",
-      "error": {
-        "code": "NO_WALLET",
-        "message": "User does not have a wallet"
-      }
+      "wallet_id": "tw_user_11111",
+      "wallet_status": "active",
+      "user_status": "pending",
+      "payment_enabled": false,
+      "activation_required": true,
+      "activation_url": "https://tween.example/account/activate?user=@charlie:tween.example"
     }
   ],
-  "resolved_count": 2,
+  "resolved_count": 3,
   "total_count": 3
 }
 ```
@@ -2594,21 +2626,34 @@ Content-Type: application/json
 
 The Wallet Service MUST maintain a bidirectional mapping:
 
-| Matrix User ID | Wallet ID | Status | Created At |
-|----------------|-----------|--------|------------|
-| @alice:tween.example | tw_user_12345 | active | 2025-12-18T14:30:00Z |
-| @bob:tween.example | tw_user_67890 | active | 2025-12-15T09:00:00Z |
-| @mona:tween.im | tw_user_11111 | active | 2024-12-01T00:00:00Z |
+| Matrix User ID | Wallet ID | User Status | Wallet Status | Payment Enabled | Created At |
+|----------------|-----------|-------------|---------------|-----------------|------------|
+| @alice:tween.example | tw_user_12345 | active | active | true | 2025-12-18T14:30:00Z |
+| @bob:tween.example | tw_user_67890 | active | active | true | 2025-12-15T09:00:00Z |
+| @charlie:tween.example | tw_user_11111 | pending | active | false | 2025-12-18T10:00:00Z |
 
 **Wallet Service Interface Requirements:**
 
 Wallet Service implementations MUST provide:
 
-```
-GetWalletByUserId(user_id: string) → wallet_id, status
-GetWalletsByUserIds(user_ids: []string) → []WalletMapping
-CreateWallet(user_id: string, settings: WalletSettings) → wallet_id
-```
+**User Account Query:**
+- The Wallet Service MUST support querying user account information by Matrix User ID
+- The response MUST include: `wallet_id`, `wallet_status`, `user_status`, `payment_enabled`
+
+**Batch Account Query:**
+- The Wallet Service MUST support querying multiple user accounts in a single request
+- The response MUST return an array of user account mappings
+
+**Account Creation:**
+- The Wallet Service MUST support ensuring a user account exists for a Matrix User ID
+- If account does not exist, Wallet Service MUST create a new account
+- Newly created accounts MUST have `user_status: pending`
+- All accounts MUST have an associated wallet with `wallet_status: active`
+
+**Account Activation:**
+- The Wallet Service MUST support account activation via activation data
+- Activation data MUST include: verification information, PIN/biometric setup, terms acceptance
+- Upon successful activation, Wallet Service MUST set `user_status: active` and `payment_enabled: true`
 
 #### 6.3.5 P2P Payment with Matrix User ID
 
@@ -2636,25 +2681,50 @@ Content-Type: application/json
 
 1. Validate TEP token and extract sender's user_id and wallet_id
 2. Resolve recipient Matrix ID to wallet_id:
-   - Call Wallet Service: `GetWalletByUserId("@bob:tween.example")`
-   - If no wallet found, return NO_WALLET error
-   - If wallet suspended, return WALLET_SUSPENDED error
+   - Call Wallet Service: `EnsureUserAccount("@bob:tween.example")`
+   - If no account exists, Wallet Service creates account with `user_status: pending`
+   - If user_status is suspended, return USER_SUSPENDED error (payment initiation only, not resolution)
 3. Validate room membership (both users must be in the specified room)
 4. Proceed with payment authorization flow
 
-**Error Response (No Wallet):**
+**User Resolution for Suspended Accounts:**
 
-```json
-{
-  "error": {
-    "code": "RECIPIENT_NO_WALLET",
-    "message": "Recipient does not have a wallet",
-    "recipient": "@bob:tween.example",
-    "can_invite": true,
-    "invite_url": "tween://invite-wallet?user=@bob:tween.example"
-  }
-}
-```
+When resolving a user with `user_status: suspended`:
+
+- Resolution MUST succeed with HTTP 200 OK
+- Response MUST include `user_status: suspended` and `payment_enabled: false`
+- Payment initiation to suspended users MUST fail with USER_SUSPENDED error
+- This allows senders to distinguish between "no account" and "account exists but suspended"
+
+**Payment to Pending User:**
+
+When sending to a user with `user_status: pending`:
+
+- Payment is successful and funds are deposited to wallet
+- Recipient receives account activation notification
+- Recipient cannot access or spend funds until account activation completed
+
+**Account Creation Behavior:**
+
+When TMCP Server calls account creation method for a Matrix user without an account:
+
+- The Wallet Service MUST create a user account with `user_status: pending`
+- The Wallet Service MUST create a wallet with `wallet_status: active`
+- The Wallet Service MUST return `payment_enabled: false`
+- The wallet MUST be capable of receiving funds immediately
+- The user MUST complete activation (verification, PIN setup, terms acceptance) to enable payments
+
+**Account Creation Security Consideration:**
+
+The TMCP Server SHOULD only invoke account creation when there is explicit intent to transfer funds to recipient. This prevents creation of unwanted wallet accounts for privacy reasons and reduces potential for account enumeration attacks.
+
+**Activation Notification:**
+
+When a payment is successfully sent to a user with `user_status: pending`:
+
+- The TMCP Server MUST send a Matrix event of type `m.tween.account.activate` to recipient in relevant room
+- The event MUST include: `wallet_id`, `activation_url`, `incentive` (if applicable)
+- The notification MUST clearly indicate that funds are available pending account activation
 
 #### 6.3.6 Application Service Role in User Resolution
 
@@ -2737,9 +2807,10 @@ The `room_id` parameter is OPTIONAL but RECOMMENDED for explicit room context va
 Clients implementing P2P payments SHOULD:
 
 1. Resolve recipient wallet status before showing payment UI
-2. Handle cases where recipient has no wallet or suspended wallet
+2. Handle cases where recipient has pending activation or suspended wallet
 3. Include room_id for proper context validation
-4. Provide user-friendly error messages for different failure scenarios
+4. Display activation prompt when sending to users with `user_status: pending`
+5. Provide user-friendly error messages for different failure scenarios
 
 #### 6.3.9 Matrix Room Member Wallet Status
 
@@ -2771,48 +2842,136 @@ Content-Type: application/json
     "@alice:tween.example": {
       "has_wallet": true,
       "wallet_status": "active",
+      "user_status": "active",
+      "payment_enabled": true,
       "display_name": "Alice"
     },
     "@bob:tween.example": {
       "has_wallet": true,
       "wallet_status": "active",
+      "user_status": "active",
+      "payment_enabled": true,
       "display_name": "Bob"
     },
     "@charlie:tween.example": {
-      "has_wallet": false,
-      "wallet_status": "none",
-      "invite_url": "https://tween.example/wallet/create?inviter=alice"
+      "has_wallet": true,
+      "wallet_status": "active",
+      "user_status": "pending",
+      "payment_enabled": false,
+      "activation_required": true,
+      "activation_url": "https://tween.example/account/activate?user=@charlie:tween.example"
     }
   }
 }
 ```
 
-#### 6.3.10 Wallet Invitation Protocol
+#### 6.3.10 Account Activation Protocol
 
-When a user attempts to send money to someone without a wallet:
+When a payment is sent to a user with `user_status: pending`, the recipient MUST complete account activation to access and spend funds.
 
-**Invite Matrix Event:**
+**Activation Matrix Event:**
 
 ```json
 {
-  "type": "m.tween.wallet.invite",
+  "type": "m.tween.account.activate",
   "content": {
-    "msgtype": "m.tween.wallet_invite",
-    "body": "Alice invited you to create a Tween Wallet",
-    "inviter": "@alice:tween.example",
-    "invitee": "@charlie:tween.example",
-    "invite_url": "https://tween.example/wallet/create?inviter=alice",
+    "msgtype": "m.tween.account_activation",
+    "body": "You received $5,000.00. Activate your account to access your funds.",
+    "sender": "@alice:tween.example",
+    "recipient": "@charlie:tween.example",
+    "wallet_id": "tw_user_11111",
+    "amount": 5000.00,
+    "currency": "USD",
+    "activation_url": "https://tween.example/account/activate?wallet=tw_user_11111&sender=@alice:tween.example",
     "incentive": {
-      "type": "signup_bonus",
-      "amount": 1000.00,
+      "type": "activation_bonus",
+      "amount": 10.00,
       "currency": "USD",
       "expires_at": "2025-12-25T00:00:00Z"
     }
   },
   "room_id": "!chat123:tween.example",
-  "sender": "@alice:tween.example"
+  "sender": "@_tmcp:tween.example"
 }
 ```
+
+**Activation Requirements:**
+
+Users MUST complete the following steps to activate their account:
+
+1. **Identity Verification**: Submit government-issued ID or other acceptable verification documents
+2. **Terms Acceptance**: Accept Wallet Service terms of service and privacy policy
+3. **Security Setup**: Configure authentication method (PIN or biometric) for payments
+4. **Contact Verification**: Verify email or phone number for account recovery
+
+**Activation Endpoint:**
+
+```http
+POST /wallet/v1/activate HTTP/1.1
+Host: tmcp.example.com
+Authorization: Bearer <TEP_TOKEN>
+Content-Type: application/json
+
+{
+  "wallet_id": "tw_user_11111",
+  "verification_data": {
+    "id_document": {
+      "type": "passport",
+      "document_number": "A12345678",
+      "country": "US"
+    },
+    "biometric_data": {
+      "device_id": "device_xyz789",
+      "public_key": "base64_encoded_public_key"
+    },
+    "pin": "hashed_pin_value",
+    "terms_accepted": true,
+    "terms_version": "1.5.0"
+  }
+}
+```
+
+**Activation Response (Success):**
+
+```json
+{
+  "wallet_id": "tw_user_11111",
+  "user_id": "@charlie:tween.example",
+  "user_status": "active",
+  "payment_enabled": true,
+  "balance": {
+    "available": 5010.00,
+    "pending": 0.00,
+    "currency": "USD"
+  },
+  "activated_at": "2025-12-18T15:30:00Z",
+  "incentive_claimed": {
+    "type": "activation_bonus",
+    "amount": 10.00,
+    "currency": "USD"
+  }
+}
+```
+
+**Wallet Service Activation Requirements:**
+
+The Wallet Service MUST enforce the following during account activation:
+
+1. **Verification Validation**: Verify government-issued ID documents or use third-party KYC service
+2. **Biometric Enrollment**: Register device public keys for biometric authentication if requested
+3. **PIN Security**: Enforce PIN strength requirements (minimum 6 digits, no sequential/repeating patterns)
+4. **Terms Tracking**: Record terms acceptance with version number for audit trail
+5. **Status Transition**: Update `user_status` from `pending` to `active` only after all requirements met
+6. **Payment Enablement**: Set `payment_enabled: true` only after successful activation
+7. **Activation Bonus**: Apply any applicable activation incentives to wallet balance
+
+**Security Considerations:**
+
+- The activation URL MUST include cryptographic verification to prevent tampering
+- Biometric data MUST be stored device-side with only public keys registered server-side
+- PIN values MUST be hashed using strong one-way hash function (argon2id or scrypt)
+- All activation attempts MUST be logged for fraud detection
+- Activation attempts MUST be rate-limited to prevent brute force attacks
 
 ### 6.4 Wallet Verification Interface
 
@@ -3892,6 +4051,48 @@ TMCP defines custom Matrix event types in the `m.tween.*` namespace.
 }
 ```
 
+#### 8.1.4 Account Activation Event
+
+Sent to users when they receive payments but have `user_status: pending`:
+
+```json
+{
+  "type": "m.tween.account.activate",
+  "content": {
+    "msgtype": "m.tween.account_activation",
+    "body": "You received $5,000.00. Activate your account to access your funds.",
+    "sender": "@alice:tween.example",
+    "recipient": "@charlie:tween.example",
+    "wallet_id": "tw_user_11111",
+    "amount": 5000.00,
+    "currency": "USD",
+    "activation_url": "https://tween.example/account/activate?wallet=tw_user_11111&sender=@alice:tween.example",
+    "incentive": {
+      "type": "activation_bonus",
+      "amount": 10.00,
+      "currency": "USD",
+      "expires_at": "2025-12-25T00:00:00Z"
+    }
+  },
+  "room_id": "!chat123:tween.example",
+  "sender": "@_tmcp:tween.example"
+}
+```
+
+**Account Activation Event Fields:**
+
+| Field | Required | Type | Description |
+|-------|----------|-------|-------------|
+| `msgtype` | Yes | string | MUST be `m.tween.account_activation` |
+| `body` | Yes | string | Human-readable notification message |
+| `sender` | Yes | string | Matrix User ID of payment sender |
+| `recipient` | Yes | string | Matrix User ID of payment recipient |
+| `wallet_id` | Yes | string | Wallet ID of recipient |
+| `amount` | Yes | decimal | Amount sent to recipient |
+| `currency` | Yes | string | Currency code (ISO 4217) |
+| `activation_url` | Yes | string | URL for account activation |
+| `incentive` | No | object | Optional activation incentive details |
+
 ### 8.2 Event Processing
 
 #### 8.2.1 Application Service Transaction
@@ -4369,6 +4570,8 @@ Communication between mini-apps and the host application uses JSON-RPC 2.0 [RFC4
 | Method | Direction | Description |
 |--------|-----------|-------------|
 | `tween.auth.getUserInfo` | MA → Host | Retrieve user profile |
+| `tween.auth.requestScopes` | MA → Host | Request additional permissions (triggers consent) |
+| `tween.auth.getScopes` | MA → Host | Query currently granted permissions |
 | `tween.wallet.getBalance` | MA → Host | Get wallet balance |
 | `tween.wallet.pay` | MA → Host | Initiate payment |
 | `tween.wallet.sendGift` | MA → Host | Send group gift |
@@ -4378,6 +4581,8 @@ Communication between mini-apps and the host application uses JSON-RPC 2.0 [RFC4
 | `tween.messaging.sendCard` | MA → Host | Send rich message card |
 | `tween.storage.get` | MA → Host | Read storage |
 | `tween.storage.set` | MA → Host | Write storage |
+| `tween.app.minimize` | MA → Host | Minimize mini-app to PiP/Tray |
+| `tween.app.maximize` | MA → Host | Restore mini-app from PiP/Tray |
 | `tween.lifecycle.onShow` | Host → MA | Mini-app shown |
 | `tween.lifecycle.onHide` | Host → MA | Mini-app hidden |
 
@@ -5079,7 +5284,7 @@ X-RateLimit-Reset: 1704067302
 | `APP_NOT_REMOVABLE` | 403 | Official app cannot be removed | No |
 | `APP_NOT_FOUND` | 404 | Mini-app not found | No |
 | `DEVICE_NOT_REGISTERED` | 400 | Device not registered for MFA | No |
-| `RECIPIENT_NO_WALLET` | 400 | Payment recipient has no wallet | No |
+| `USER_SUSPENDED` | 403 | Recipient account is suspended | No |
 | `RECIPIENT_ACCEPTANCE_REQUIRED` | 400 | Recipient must accept payment | No |
 | `TRANSFER_EXPIRED` | 400 | Transfer expired (24h window) | No |
 | `GIFT_EXPIRED` | 400 | Group gift expired | No |
@@ -5254,6 +5459,14 @@ Content-Type: application/json
     "company_name": "Tween IM",
     "official": true
   },
+  "marketing": {
+    "screenshots": [
+      "https://cdn.tween.example/marketing/wallet_1.png",
+      "https://cdn.tween.example/marketing/wallet_2.png"
+    ],
+    "header_image": "https://cdn.tween.example/marketing/wallet_header.png",
+    "theme_color": "#2DD4BF"
+  },
   "preinstall": {
     "enabled": true,
     "platforms": ["ios", "android", "web", "desktop"],
@@ -5373,6 +5586,14 @@ Authorization: Bearer <TEP_TOKEN>
       },
       "install_count": 50000,
       "icon_url": "https://cdn.tween.example/icons/shop.png",
+      "marketing": {
+        "screenshots": [
+          "https://cdn.tween.example/marketing/shop_1.png",
+          "https://cdn.tween.example/marketing/shop_2.png"
+        ],
+        "header_image": "https://cdn.tween.example/marketing/shop_header.png",
+        "theme_color": "#FF4D4D"
+      },
       "version": "1.2.0",
       "preinstalled": false,
       "installed": false
